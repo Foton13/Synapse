@@ -1,9 +1,16 @@
 """Unit tests for the processor module (Pydantic models & LLM factory)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
 
-from src.processor import ExtractionError, KnowledgeGraph, Relation, get_llm, process_note
+import pytest
+
+from src.processor import (
+    ExtractionError,
+    KnowledgeGraph,
+    Relation,
+    get_llm,
+    process_note,
+)
 
 
 class TestRelationModel:
@@ -78,7 +85,7 @@ class TestProcessNote:
         
         with patch("src.processor.get_llm"), \
              patch("src.processor.PromptTemplate") as mock_prompt_class, \
-             patch("src.processor.PydanticOutputParser") as mock_parser_class:
+             patch("src.processor.PydanticOutputParser"):
             
             mock_prompt = mock_prompt_class.return_value
             mock_chain = MagicMock()
@@ -94,7 +101,7 @@ class TestProcessNote:
     def test_process_note_failure_raises_extraction_error(self):
         with patch("src.processor.get_llm"), \
              patch("src.processor.PromptTemplate") as mock_prompt_class, \
-             patch("src.processor.PydanticOutputParser") as mock_parser_class:
+             patch("src.processor.PydanticOutputParser"):
             
             mock_prompt = mock_prompt_class.return_value
             mock_chain = MagicMock()

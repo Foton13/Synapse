@@ -12,7 +12,11 @@ class Settings(BaseSettings):
     Application configuration loaded from environment variables and/or .env file.
     It provides fail-fast validation at startup.
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # LLM Settings
     llm_provider: str = "ollama"
@@ -29,4 +33,4 @@ class Settings(BaseSettings):
 
 
 # Global singleton settings instance
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

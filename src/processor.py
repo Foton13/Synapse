@@ -7,11 +7,13 @@ from text using Large Language Models (Ollama or OpenAI).
 
 import logging
 
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
+
 
 from src.config import settings
 
@@ -40,7 +42,7 @@ class KnowledgeGraph(BaseModel):
     )
 
 
-def get_llm():
+def get_llm() -> BaseChatModel:
     """
     Factory function that returns the configured LLM instance.
 
@@ -49,7 +51,8 @@ def get_llm():
     - anything else → ``ChatOllama`` with model from settings (default ``llama3``)
     """
     if settings.llm_provider == "openai":
-        return ChatOpenAI(model="gpt-4o", api_key=settings.openai_api_key)
+        api_key = settings.openai_api_key or ""
+        return ChatOpenAI(model="gpt-4o", api_key=api_key)  # type: ignore[arg-type]
     return ChatOllama(model=settings.ollama_model)
 
 class ExtractionError(Exception):
@@ -87,7 +90,9 @@ def process_note(content: str) -> KnowledgeGraph:
     chain = prompt | llm | parser
 
     try:
-        return chain.invoke({"text": content})
+        from typing import cast
+        result = chain.invoke({"text": content})
+        return cast(KnowledgeGraph, result)
     except Exception as e:
         logger.error("Failed to extract knowledge graph: %s", e)
         raise ExtractionError(f"Failed to extract knowledge graph: {e}") from e

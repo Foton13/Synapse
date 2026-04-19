@@ -43,7 +43,7 @@ def answer_question(
     )
     entity_chain = entity_prompt | llm
 
-    graph_results: list = []
+    graph_results: list[tuple[str, str]] = []
     try:
         entity_response = entity_chain.invoke({"question": question})
         entity_name = (

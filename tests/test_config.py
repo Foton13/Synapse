@@ -2,7 +2,9 @@
 
 import pytest
 from pydantic import ValidationError
+
 from src.config import Settings
+
 
 class TestConfig:
     """Tests for the Settings Pydantic model."""

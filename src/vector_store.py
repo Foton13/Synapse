@@ -38,7 +38,7 @@ class VectorStore:
         self.collection: Any = (
             self.client.get_or_create_collection(
                 name="notes",
-                embedding_function=self.embedding_fn,
+                embedding_function=self.embedding_fn,  # type: ignore[arg-type]
             )
         )
         logger.debug("ChromaDB collection 'notes' ready at %s", path)

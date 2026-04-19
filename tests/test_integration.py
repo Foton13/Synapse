@@ -3,6 +3,7 @@ from testcontainers.neo4j import Neo4jContainer
 
 from src.graph_store import GraphStore
 
+
 def docker_is_running():
     try:
         import docker

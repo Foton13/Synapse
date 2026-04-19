@@ -1,15 +1,16 @@
 """Unit tests for the graph storage layer."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 from src.graph_store import GraphStore
+
 
 class TestGraphStore:
     """Tests for the GraphStore wrapper."""
 
     @patch("src.graph_store.GraphDatabase.driver")
     def test_init_creates_driver(self, mock_driver_init):
-        gs = GraphStore(uri="bolt://test", user="u", password="p")
+        GraphStore(uri="bolt://test", user="u", password="p")
         mock_driver_init.assert_called_once_with("bolt://test", auth=("u", "p"))
 
     @patch("src.graph_store.GraphDatabase.driver")

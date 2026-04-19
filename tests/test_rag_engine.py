@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-import pytest
+
 from src.rag_engine import answer_question
+
 
 @dataclass
 class MockResponse:
@@ -62,7 +63,7 @@ class TestRagEngine:
         assert str(answer) == "I don't know."
 
     def test_answer_question_entity_extraction_failure(self):
-        """Test flow when entity extraction fails (should still proceed with vector context)."""
+        """Test flow when entity extraction fails (should use vector context)."""
         from unittest.mock import MagicMock
         mock_vs = MagicMock()
         mock_vs.query.return_value = {"documents": [["Some context."]]}

@@ -24,4 +24,6 @@ jobs:
     - name: Type check with Mypy
       run: mypy src/
     - name: Test with pytest
+      env:
+        NEO4J_PASSWORD: "dummy_password_for_ci"
       run: pytest tests/

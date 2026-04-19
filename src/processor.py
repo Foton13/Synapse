@@ -14,7 +14,6 @@ from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-
 from src.config import settings
 
 logger = logging.getLogger("synapse")

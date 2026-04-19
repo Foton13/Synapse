@@ -1,0 +1,7 @@
+langchain
+llama-index
+chromadb
+typer
+pydantic
+neo4j
+python-dotenv

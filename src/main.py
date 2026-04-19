@@ -64,13 +64,27 @@ def ask(question: str):
     vector_results = vector_store.query(question)
     context_docs = vector_results['documents'][0] if vector_results['documents'] else []
     
-    # 2. Graph Search (extract keywords from question and search graph)
-    # Simple approach: use the question as the entity
-    graph_results = graph_store.query_graph(question)
+    # 2. Graph Search (Entity extraction from question)
+    llm = get_llm()
+    entity_prompt = PromptTemplate.from_template(
+        "Extract the main entity from the following question. Return only the entity name.\n\nQuestion: {question}"
+    )
+    entity_chain = entity_prompt | llm
+    
+    try:
+        entity_response = entity_chain.invoke({"question": question})
+        # Handle both ChatModel and LLM outputs
+        entity_name = entity_response.content if hasattr(entity_response, 'content') else str(entity_response)
+        entity_name = entity_name.strip()
+        
+        graph_results = graph_store.query_graph(entity_name)
+    except Exception as e:
+        typer.echo(f"Помилка при пошуку сутності: {e}")
+        graph_results = []
+
     graph_context = "\n".join([f"{rel} -> {conn}" for conn, rel in graph_results])
     
     # 3. Generate Answer
-    llm = get_llm()
     prompt = PromptTemplate.from_template(
         "Ви - помічник по особистим нотаткам. Використовуйте наданий контекст, щоб відповісти на питання.\n\n"
         "Векторний контекст:\n{vector_context}\n\n"
@@ -86,7 +100,8 @@ def ask(question: str):
         "question": question
     })
     
-    typer.echo(f"\nAI: {answer}")
+    final_answer = answer.content if hasattr(answer, 'content') else str(answer)
+    typer.echo(f"\nAI: {final_answer}")
 
 if __name__ == "__main__":
     try:

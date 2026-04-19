@@ -1,7 +1,7 @@
 import os
-from typing import List, Tuple
+from typing import List, Tuple, Union, Optional
 from pydantic import BaseModel, Field
-from langchain_community.llms import Ollama
+from langchain_community.chat_models import ChatOllama
 from langchain_openai import ChatOpenAI
 from langchain.prompts import PromptTemplate
 from langchain.output_parsers import PydanticOutputParser
@@ -23,9 +23,9 @@ def get_llm():
     if provider == "openai":
         return ChatOpenAI(model="gpt-4o")
     else:
-        return Ollama(model=os.getenv("OLLAMA_MODEL", "llama3"))
+        return ChatOllama(model=os.getenv("OLLAMA_MODEL", "llama3"))
 
-def process_note(content: str):
+def process_note(content: str) -> Union[KnowledgeGraph, Exception]:
     llm = get_llm()
     parser = PydanticOutputParser(pydantic_object=KnowledgeGraph)
     
@@ -40,4 +40,4 @@ def process_note(content: str):
     try:
         return chain.invoke({"text": content})
     except Exception as e:
-        return {"error": str(e), "content_preview": content[:50]}
+        return e

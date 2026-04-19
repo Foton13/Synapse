@@ -1,8 +1,29 @@
-# .gitignore
-.venv/
+# ── Python ────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.venv/
+
+# ── Environment ───────────────────────────────
 .env
+
+# ── Data (runtime-generated) ──────────────────
+data/chromadb/
+data/neo4j/
+
+# Keep example data tracked
+!data/example/
+
+# ── IDE / OS ──────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
 .DS_Store
-data/
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────
 *.log

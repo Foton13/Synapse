@@ -1,111 +1,142 @@
-import typer
+"""
+Synapse — CLI entry point.
+
+Provides three commands:
+- ``index``  — scan Markdown files and populate the knowledge base.
+- ``query``  — look up entity connections in the knowledge graph.
+- ``ask``    — ask a natural-language question answered via GraphRAG.
+"""
+
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from src.processor import process_note, get_llm
+
+import typer
+
 from src.graph_store import GraphStore
+from src.processor import ExtractionError, get_llm, process_note
+from src.rag_engine import answer_question
 from src.vector_store import VectorStore
-from langchain.prompts import PromptTemplate
 
-app = typer.Typer()
-graph_store = GraphStore()
-vector_store = VectorStore()
+app = typer.Typer(
+    name="synapse",
+    help="Synapse -- Transform your Markdown notes into an intelligent knowledge base.",
+    add_completion=False,
+)
+
+logger = logging.getLogger("synapse")
+
+
+def _setup_logging(verbose: bool) -> None:
+    level = logging.DEBUG if verbose else logging.INFO
+    logging.basicConfig(
+        level=level,
+        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+    )
+
 
 @app.command()
-def index(path: str):
-    """
-    Сканування Markdown файлів за вказаним шляхом та індексація в граф і векторну БД
-    """
+def index(
+    path: str = typer.Argument(..., help="Path to directory with Markdown files."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug output."),
+) -> None:
+    """Scan Markdown files and index them into the vector DB and knowledge graph."""
+    _setup_logging(verbose)
+
     root = Path(path)
-    md_files = [f for f in root.rglob("*.md") if ".venv" not in f.parts and ".git" not in f.parts]
-    
-    typer.echo(f"Знайдено Markdown-файлів: {len(md_files)}")
-    for file in md_files:
+    if not root.exists():
+        typer.echo(f"❌ Path does not exist: {root}", err=True)
+        raise typer.Exit(code=1)
+
+    md_files = [
+        f for f in root.rglob("*.md")
+        if ".venv" not in f.parts and ".git" not in f.parts
+    ]
+
+    if not md_files:
+        typer.echo("⚠️  No Markdown files found.")
+        raise typer.Exit()
+
+    typer.echo(f"📂 Found {len(md_files)} Markdown file(s)\n")
+
+    indexed = 0
+
+    def _process_single_file(file: Path, vs: VectorStore, gs: GraphStore) -> int:
+        typer.echo(f"  Processing {file.name} …")
+        content = file.read_text(encoding="utf-8")
+
+        # 1. Vector indexing
+        vs.add_document(
+            doc_id=str(file),
+            text=content,
+            metadata={"filename": file.name},
+        )
+
+        # 2. Graph indexing
         try:
-            typer.echo(f"Обробка {file.name}...")
-            content = file.read_text(encoding='utf-8')
-            
-            # 1. Vector Indexing
-            vector_store.add_document(
-                doc_id=str(file),
-                text=content,
-                metadata={"filename": file.name}
-            )
-            
-            # 2. Graph Indexing
             kg_data = process_note(content)
-            if hasattr(kg_data, 'entities'):
-                graph_store.add_knowledge(kg_data)
-                typer.echo(f" - Збережено у граф: {len(kg_data.entities)} сутностей")
-            else:
-                typer.echo(f" - Помилка обробки графа для {file.name}: {kg_data}")
-                
+            gs.add_knowledge(kg_data)
+            typer.echo(
+                f" ✅ {len(kg_data.entities)} entities, "
+                f"{len(kg_data.relations)} relations for {file.name}"
+            )
+            return 1
+        except ExtractionError as e:
+            typer.echo(f" ⚠️ Could not extract graph for {file.name}: {e}")
+            return 0
         except Exception as e:
-            typer.echo(f" Помилка при обробці {file.name}: {e}")
+            logger.error("Error processing %s: %s", file.name, e)
+            typer.echo(f"    ❌ Error for {file.name}: {e}")
+            return 0
+
+    with GraphStore() as graph_store, VectorStore() as vector_store:
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(_process_single_file, f, vector_store, graph_store)
+                for f in md_files
+            ]
+            for future in as_completed(futures):
+                indexed += future.result()
+
+    typer.echo(f"\n✨ Done — {indexed}/{len(md_files)} files indexed successfully.")
+
 
 @app.command()
-def query(entity: str):
-    """
-    Пошук зв'язків для конкретної сутності в графі
-    """
-    results = graph_store.query_graph(entity)
-    if not results:
-        typer.echo(f"Зв'язків для '{entity}' не знайдено.")
-        return
-    
-    typer.echo(f"Зв'язки для '{entity}':")
-    for conn, rel in results:
-        typer.echo(f" - {rel} -> {conn}")
+def query(
+    entity: str = typer.Argument(..., help="Entity name to look up."),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug output."),
+) -> None:
+    """Find all connections for a specific entity in the knowledge graph."""
+    _setup_logging(verbose)
+
+    with GraphStore() as graph_store:
+        results = graph_store.query_graph(entity)
+
+        if not results:
+            typer.echo(f"No connections found for '{entity}'.")
+            return
+
+        typer.echo(f"🔗 Connections for '{entity}':\n")
+        for connected, rel_type in results:
+            typer.echo(f"  • {entity}  ─[{rel_type}]→  {connected}")
+
 
 @app.command()
-def ask(question: str):
-    """
-    Запитати AI про ваші нотатки (GraphRAG)
-    """
-    # 1. Vector Search
-    vector_results = vector_store.query(question)
-    context_docs = vector_results['documents'][0] if vector_results['documents'] else []
-    
-    # 2. Graph Search (Entity extraction from question)
-    llm = get_llm()
-    entity_prompt = PromptTemplate.from_template(
-        "Extract the main entity from the following question. Return only the entity name.\n\nQuestion: {question}"
-    )
-    entity_chain = entity_prompt | llm
-    
-    try:
-        entity_response = entity_chain.invoke({"question": question})
-        # Handle both ChatModel and LLM outputs
-        entity_name = entity_response.content if hasattr(entity_response, 'content') else str(entity_response)
-        entity_name = entity_name.strip()
-        
-        graph_results = graph_store.query_graph(entity_name)
-    except Exception as e:
-        typer.echo(f"Помилка при пошуку сутності: {e}")
-        graph_results = []
+def ask(
+    question: str = typer.Argument(
+        ..., help="Natural-language question about your notes."
+    ),
+    verbose: bool = typer.Option(False, "--verbose", "-v", help="Enable debug output."),
+) -> None:
+    """Ask an AI question about your notes using GraphRAG (vector + graph context)."""
+    _setup_logging(verbose)
 
-    graph_context = "\n".join([f"{rel} -> {conn}" for conn, rel in graph_results])
-    
-    # 3. Generate Answer
-    prompt = PromptTemplate.from_template(
-        "Ви - помічник по особистим нотаткам. Використовуйте наданий контекст, щоб відповісти на питання.\n\n"
-        "Векторний контекст:\n{vector_context}\n\n"
-        "Графовий контекст (зв'язки):\n{graph_context}\n\n"
-        "Питання: {question}\n"
-        "Відповідь:"
-    )
-    
-    chain = prompt | llm
-    answer = chain.invoke({
-        "vector_context": "\n".join(context_docs),
-        "graph_context": graph_context,
-        "question": question
-    })
-    
-    final_answer = answer.content if hasattr(answer, 'content') else str(answer)
-    typer.echo(f"\nAI: {final_answer}")
+    with GraphStore() as graph_store, VectorStore() as vector_store:
+        llm = get_llm()
+        answer = answer_question(question, vector_store, graph_store, llm)
+        typer.echo(f"\n🤖 AI: {answer}")
+
 
 if __name__ == "__main__":
-    try:
-        app()
-    finally:
-        graph_store.close()
-
+    app()

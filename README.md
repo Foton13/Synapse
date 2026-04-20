@@ -5,7 +5,7 @@
     using <strong>Vector Search</strong> and <strong>Knowledge Graphs</strong>.
   </p>
   <p align="center">
-    <a href="https://github.com/Foton13/Synapse-/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Foton13/Synapse-/ci.yml?branch=main&style=flat-square" alt="Build Status"></a>
+    <a href="https://github.com/Foton13/Synapse/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Foton13/Synapse/ci.yml?branch=main&style=flat-square" alt="Build Status"></a>
     <a href="#-quick-start"><img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT License"></a>
     <a href="#-tech-stack"><img src="https://img.shields.io/badge/LLM-Ollama%20%7C%20OpenAI-8A2BE2?style=flat-square" alt="LLM Support"></a>
@@ -94,8 +94,8 @@ synapse/
 ### 1 · Clone & Install
 
 ```bash
-git clone git@github.com:Foton13/Synapse-.git
-cd Synapse-
+git clone git@github.com:Foton13/Synapse.git
+cd Synapse
 
 python -m venv .venv
 
@@ -238,8 +238,8 @@ Synapse використовує **GraphRAG**: він комбінує вект�
 
 ```bash
 # 1. Клонування та встановлення
-git clone git@github.com:Foton13/Synapse-.git
-cd Synapse-
+git clone git@github.com:Foton13/Synapse.git
+cd Synapse
 python -m venv .venv
 .venv\Scripts\activate          # Windows
 # source .venv/bin/activate     # Linux / macOS

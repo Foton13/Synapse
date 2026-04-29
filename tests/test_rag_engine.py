@@ -53,8 +53,9 @@ class TestAnswerQuestion:
         answer_msg.content = "Based on the context..."
         answer_chain.invoke.return_value = answer_msg
 
-        with patch("src.rag_engine.extract_structured", side_effect=Exception("LLM failed")), \
-             patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
+        with patch(
+            "src.rag_engine.extract_structured", side_effect=Exception("LLM failed")
+        ), patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
 
             mock_ft.return_value.__or__.return_value = answer_chain
             result = answer_question("What?", mock_vs, mock_gs, mock_llm)

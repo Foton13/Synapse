@@ -56,8 +56,7 @@ def answer_question(
         raise ValueError("Question must not be empty")
     if len(question) > MAX_QUESTION_LENGTH:
         raise ValueError(
-            f"Question too long ({len(question)} chars, "
-            f"max {MAX_QUESTION_LENGTH})"
+            f"Question too long ({len(question)} chars, max {MAX_QUESTION_LENGTH})"
         )
 
     # 1. Vector search — find semantically similar documents
@@ -102,11 +101,13 @@ def answer_question(
     )
 
     chain = prompt | llm
-    answer = chain.invoke({
-        "vector_context": "\n".join(context_docs),
-        "graph_context": graph_context,
-        "question": question,
-    })
+    answer = chain.invoke(
+        {
+            "vector_context": "\n".join(context_docs),
+            "graph_context": graph_context,
+            "question": question,
+        }
+    )
 
     # Ensure we always return a plain string (content can be str | list)
     raw = answer.content if hasattr(answer, "content") else str(answer)

@@ -26,8 +26,9 @@ _CHUNK_SIZE = 1_000
 _CHUNK_OVERLAP = 200
 
 
-def _split_text(text: str, chunk_size: int = _CHUNK_SIZE,
-                overlap: int = _CHUNK_OVERLAP) -> list[str]:
+def _split_text(
+    text: str, chunk_size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP
+) -> list[str]:
     """Split *text* into overlapping chunks on paragraph / sentence boundaries.
 
     This is a lightweight splitter that avoids pulling in
@@ -75,11 +76,9 @@ class VectorStore:
         client = chromadb.PersistentClient(path=path)
         self._client: chromadb.PersistentClient | None = client
         self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
-        self._collection: Collection | None = (
-            client.get_or_create_collection(
-                name="notes",
-                embedding_function=self._embedding_fn,  # type: ignore[arg-type]
-            )
+        self._collection: Collection | None = client.get_or_create_collection(
+            name="notes",
+            embedding_function=self._embedding_fn,  # type: ignore[arg-type]
         )
         logger.debug("ChromaDB collection 'notes' ready at %s", path)
 

@@ -71,7 +71,8 @@ def index(
         raise typer.Exit(code=1)
 
     md_files = [
-        f for f in root.rglob("*.md")
+        f
+        for f in root.rglob("*.md")
         if ".venv" not in f.parts and ".git" not in f.parts
     ]
 

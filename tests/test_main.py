@@ -40,11 +40,12 @@ class TestIndexCommand:
         mock_kg.entities = ["Test"]
         mock_kg.relations = []
 
-        with patch("src.main.GraphStore") as mock_gs_cls, \
-             patch("src.main.VectorStore") as mock_vs_cls, \
-             patch("src.main.process_note", return_value=mock_kg), \
-             patch("src.main.get_llm"):
-
+        with (
+            patch("src.main.GraphStore") as mock_gs_cls,
+            patch("src.main.VectorStore") as mock_vs_cls,
+            patch("src.main.process_note", return_value=mock_kg),
+            patch("src.main.get_llm"),
+        ):
             mock_gs = MagicMock()
             mock_gs.__enter__ = MagicMock(return_value=mock_gs)
             mock_gs.__exit__ = MagicMock(return_value=False)
@@ -95,11 +96,12 @@ class TestAskCommand:
     """Tests for the ``ask`` CLI command."""
 
     def test_ask_returns_answer(self):
-        with patch("src.main.GraphStore") as mock_gs_cls, \
-             patch("src.main.VectorStore") as mock_vs_cls, \
-             patch("src.main.get_llm"), \
-             patch("src.main.answer_question", return_value="Test answer"):
-
+        with (
+            patch("src.main.GraphStore") as mock_gs_cls,
+            patch("src.main.VectorStore") as mock_vs_cls,
+            patch("src.main.get_llm"),
+            patch("src.main.answer_question", return_value="Test answer"),
+        ):
             mock_gs = MagicMock()
             mock_gs.__enter__ = MagicMock(return_value=mock_gs)
             mock_gs.__exit__ = MagicMock(return_value=False)
@@ -116,11 +118,12 @@ class TestAskCommand:
         assert "Test answer" in result.output
 
     def test_ask_validation_error(self):
-        with patch("src.main.GraphStore") as mock_gs_cls, \
-             patch("src.main.VectorStore") as mock_vs_cls, \
-             patch("src.main.get_llm"), \
-             patch("src.main.answer_question", side_effect=ValueError("too long")):
-
+        with (
+            patch("src.main.GraphStore") as mock_gs_cls,
+            patch("src.main.VectorStore") as mock_vs_cls,
+            patch("src.main.get_llm"),
+            patch("src.main.answer_question", side_effect=ValueError("too long")),
+        ):
             mock_gs = MagicMock()
             mock_gs.__enter__ = MagicMock(return_value=mock_gs)
             mock_gs.__exit__ = MagicMock(return_value=False)

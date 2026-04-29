@@ -63,8 +63,9 @@ class TestVectorStore:
         assert results["ids"][0] == []
 
     def test_multiple_documents(self, store):
-        store.add_document("d1", "Machine learning and neural networks",
-                           {"filename": "ml.md"})
+        store.add_document(
+            "d1", "Machine learning and neural networks", {"filename": "ml.md"}
+        )
         store.add_document("d2", "Cooking recipes for pasta", {"filename": "cook.md"})
         store.add_document("d3", "Deep learning with PyTorch", {"filename": "dl.md"})
 

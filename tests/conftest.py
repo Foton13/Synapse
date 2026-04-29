@@ -19,6 +19,7 @@ def _set_test_env(monkeypatch, tmp_path):
 
     # Clear the cached settings so the next call re-reads the env
     from src.config import get_settings
+
     get_settings.cache_clear()
 
     yield

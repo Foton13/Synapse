@@ -27,9 +27,10 @@ class TestGraphStore:
 
         # Data to add
         from src.processor import KnowledgeGraph, Relation
+
         kg = KnowledgeGraph(
             entities=["A", "B"],
-            relations=[Relation(source="A", relation="LINKS", target="B")]
+            relations=[Relation(source="A", relation="LINKS", target="B")],
         )
 
         gs.add_knowledge(kg)
@@ -44,20 +45,20 @@ class TestGraphStore:
     def test_query_graph_returns_tuples(self, mock_driver_init):
         mock_driver = MagicMock()
         mock_driver_init.return_value = mock_driver
-        
+
         mock_session = MagicMock()
         mock_driver.session.return_value.__enter__.return_value = mock_session
-        
+
         # Mock result
         mock_result = MagicMock()
         mock_result.__iter__.return_value = [
             {"conn_name": "EntityB", "rel_type": "TYPE_X"}
         ]
         mock_session.run.return_value = mock_result
-        
+
         gs = GraphStore()
         results = gs.query_graph("EntityA")
-        
+
         assert results == [("EntityB", "TYPE_X")]
         # Called twice: once in _ensure_indexes and once in query_graph
         assert mock_session.run.call_count == 2
@@ -66,7 +67,7 @@ class TestGraphStore:
     def test_close_closes_driver(self, mock_driver_init):
         mock_driver = MagicMock()
         mock_driver_init.return_value = mock_driver
-        
+
         gs = GraphStore()
         gs.close()
         mock_driver.close.assert_called_once()

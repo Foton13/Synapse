@@ -71,9 +71,7 @@ def get_llm() -> BaseChatModel:
     settings = get_settings()
     if settings.llm_provider == "openai":
         if not settings.openai_api_key:
-            raise ValueError(
-                "OPENAI_API_KEY must be set when LLM_PROVIDER=openai"
-            )
+            raise ValueError("OPENAI_API_KEY must be set when LLM_PROVIDER=openai")
         return ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
@@ -175,8 +173,9 @@ def process_note(
         )
 
         # Sanitize all entity names coming from LLM output
-        result.entities = [sanitize_entity_name(e) for e in result.entities
-                          if sanitize_entity_name(e)]
+        result.entities = [
+            sanitize_entity_name(e) for e in result.entities if sanitize_entity_name(e)
+        ]
         for rel in result.relations:
             rel.source = sanitize_entity_name(rel.source)
             rel.target = sanitize_entity_name(rel.target)

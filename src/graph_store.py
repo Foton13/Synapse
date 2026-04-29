@@ -153,8 +153,7 @@ class GraphStore:
                 "type": _sanitize_relation_type(rel.relation),
             }
             for rel in kg_data.relations
-            if sanitize_entity_name(rel.source)
-            and sanitize_entity_name(rel.target)
+            if sanitize_entity_name(rel.source) and sanitize_entity_name(rel.target)
         ]
 
         with self.driver.session() as session:
@@ -189,6 +188,4 @@ class GraphStore:
                 "       AS conn_name, r.type AS rel_type",
                 name=clean_name,
             )
-            return [
-                (record["conn_name"], record["rel_type"]) for record in result
-            ]
+            return [(record["conn_name"], record["rel_type"]) for record in result]

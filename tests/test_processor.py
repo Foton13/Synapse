@@ -31,6 +31,7 @@ class TestRelationModel:
 
     def test_relation_missing_field_raises(self):
         from pydantic import ValidationError
+
         with pytest.raises(ValidationError):
             Relation(source="A", relation="related_to")  # missing target
 
@@ -47,10 +48,10 @@ class TestKnowledgeGraphModel:
         kg = KnowledgeGraph(
             entities=["Python", "Neo4j", "ChromaDB"],
             relations=[
-                Relation(source="Python", relation="integrates_with",
-                         target="Neo4j"),
-                Relation(source="Python", relation="integrates_with",
-                         target="ChromaDB"),
+                Relation(source="Python", relation="integrates_with", target="Neo4j"),
+                Relation(
+                    source="Python", relation="integrates_with", target="ChromaDB"
+                ),
             ],
         )
         assert len(kg.entities) == 3
@@ -62,6 +63,7 @@ class TestGetLlm:
 
     def test_get_llm_respects_settings(self, monkeypatch):
         from src.config import get_settings
+
         settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "openai")
         monkeypatch.setattr(settings, "openai_api_key", "sk-test")
@@ -71,6 +73,7 @@ class TestGetLlm:
 
     def test_get_llm_defaults_to_ollama(self, monkeypatch):
         from src.config import get_settings
+
         settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "ollama")
         monkeypatch.setattr(settings, "ollama_model", "llama3")
@@ -82,19 +85,22 @@ class TestGetLlm:
 class TestSanitizeEntityName:
     """Tests for the sanitize_entity_name utility."""
 
-    @pytest.mark.parametrize("raw, expected", [
-        ("  Python  ", "Python"),
-        ("Neo4j!!!", "Neo4j"),
-        ("O'Reilly", "O'Reilly"),
-        ("normal_name", "normal_name"),
-        ("with-dash", "with-dash"),
-        ("  ", ""),
-        ("", ""),
-        ("hello<<<world>>>", "helloworld"),
-        ("café", "café"),                      # unicode letters preserved
-        ("Project (Alpha)", "Project Alpha"),   # parens removed
-        ('@#$%^&*', ""),                        # only specials → empty
-    ])
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("  Python  ", "Python"),
+            ("Neo4j!!!", "Neo4j"),
+            ("O'Reilly", "O'Reilly"),
+            ("normal_name", "normal_name"),
+            ("with-dash", "with-dash"),
+            ("  ", ""),
+            ("", ""),
+            ("hello<<<world>>>", "helloworld"),
+            ("café", "café"),  # unicode letters preserved
+            ("Project (Alpha)", "Project Alpha"),  # parens removed
+            ("@#$%^&*", ""),  # only specials → empty
+        ],
+    )
     def test_sanitize_various_inputs(self, raw: str, expected: str):
         assert sanitize_entity_name(raw) == expected
 

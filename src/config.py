@@ -44,9 +44,7 @@ class Settings(BaseSettings):
     def password_not_weak(cls, v: str) -> str:
         """Ensure the Neo4j password is at least 8 characters long."""
         if len(v) < 8:
-            raise ValueError(
-                "NEO4J_PASSWORD must be at least 8 characters long"
-            )
+            raise ValueError("NEO4J_PASSWORD must be at least 8 characters long")
         return v
 
     @field_validator("llm_provider")
@@ -55,9 +53,7 @@ class Settings(BaseSettings):
         """Allow only known LLM providers."""
         allowed = {"ollama", "openai"}
         if v not in allowed:
-            raise ValueError(
-                f"LLM_PROVIDER must be one of {allowed}, got '{v}'"
-            )
+            raise ValueError(f"LLM_PROVIDER must be one of {allowed}, got '{v}'")
         return v
 
 

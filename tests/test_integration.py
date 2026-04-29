@@ -21,9 +21,7 @@ def docker_is_running() -> bool:
         return False
 
 
-pytestmark = pytest.mark.skipif(
-    not docker_is_running(), reason="Docker is not running"
-)
+pytestmark = pytest.mark.skipif(not docker_is_running(), reason="Docker is not running")
 
 
 @pytest.fixture(scope="module")

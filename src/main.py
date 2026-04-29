@@ -9,7 +9,6 @@ Provides three commands:
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import typer
 
@@ -37,7 +36,7 @@ def _version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
-    version: Optional[bool] = typer.Option(  # noqa: UP007 — Typer needs Optional
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-V",

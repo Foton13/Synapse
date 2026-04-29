@@ -36,7 +36,9 @@ class TestVectorStore:
     @pytest.fixture()
     def store(self, tmp_path):
         """Create a VectorStore backed by a temp directory."""
-        return VectorStore(persist_path=str(tmp_path / "chroma_test"))
+        vs = VectorStore(persist_path=str(tmp_path / "chroma_test"))
+        yield vs
+        vs.close()
 
     def test_add_and_query(self, store):
         store.add_document(

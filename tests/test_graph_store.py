@@ -11,7 +11,7 @@ class TestGraphStore:
     @patch("src.graph_store.GraphDatabase.driver")
     def test_init_creates_driver(self, mock_driver_init):
         GraphStore(uri="bolt://test", user="u", password="p")
-        mock_driver_init.assert_called_once_with("bolt://test", auth=("u", "p"))
+        mock_driver_init.assert_called_once_with("bolt://test", auth=("u", "p"), max_transaction_retry_time=30.0)
 
     @patch("src.graph_store.GraphDatabase.driver")
     def test_add_knowledge_runs_queries(self, mock_driver_init):

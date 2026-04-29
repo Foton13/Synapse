@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.rag_engine import answer_question
 
 
@@ -30,7 +32,7 @@ class TestAnswerQuestion:
 
         with patch("src.rag_engine.extract_structured", return_value=mock_entity_obj), \
              patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
-            
+
             mock_ft.return_value.__or__.return_value = answer_chain
             result = answer_question("What is Neo4j?", mock_vs, mock_gs, mock_llm)
 
@@ -86,3 +88,39 @@ class TestAnswerQuestion:
             result = answer_question("Unknown?", mock_vs, mock_gs, mock_llm)
 
         assert isinstance(result, str)
+
+    def test_answer_handles_none_documents(self):
+        """Should not crash when documents key is None."""
+        mock_vs = MagicMock()
+        mock_vs.query.return_value = {"documents": None, "ids": None}
+
+        mock_gs = MagicMock()
+        mock_gs.query_graph.return_value = []
+        mock_llm = MagicMock()
+
+        mock_entity_obj = MagicMock()
+        mock_entity_obj.name = "X"
+
+        answer_chain = MagicMock()
+        answer_msg = MagicMock()
+        answer_msg.content = "No data."
+        answer_chain.invoke.return_value = answer_msg
+
+        with patch("src.rag_engine.extract_structured", return_value=mock_entity_obj), \
+             patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
+
+            mock_ft.return_value.__or__.return_value = answer_chain
+            result = answer_question("What?", mock_vs, mock_gs, mock_llm)
+
+        assert isinstance(result, str)
+
+    def test_empty_question_raises(self):
+        """Empty question should raise ValueError."""
+        with pytest.raises(ValueError, match="must not be empty"):
+            answer_question("", MagicMock(), MagicMock(), MagicMock())
+
+    def test_too_long_question_raises(self):
+        """Oversized question should raise ValueError."""
+        long_q = "x" * 1_001
+        with pytest.raises(ValueError, match="too long"):
+            answer_question(long_q, MagicMock(), MagicMock(), MagicMock())

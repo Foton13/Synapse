@@ -1,4 +1,4 @@
-"""Unit tests for the processor module (Pydantic models & LLM factory)."""
+"""Unit tests for the processor module (Pydantic models, LLM factory & sanitization)."""
 
 from unittest.mock import MagicMock, patch
 
@@ -10,6 +10,7 @@ from src.processor import (
     Relation,
     get_llm,
     process_note,
+    sanitize_entity_name,
 )
 
 
@@ -46,9 +47,9 @@ class TestKnowledgeGraphModel:
         kg = KnowledgeGraph(
             entities=["Python", "Neo4j", "ChromaDB"],
             relations=[
-                Relation(source="Python", relation="integrates_with", 
+                Relation(source="Python", relation="integrates_with",
                          target="Neo4j"),
-                Relation(source="Python", relation="integrates_with", 
+                Relation(source="Python", relation="integrates_with",
                          target="ChromaDB"),
             ],
         )
@@ -60,12 +61,11 @@ class TestGetLlm:
     """Tests for the LLM factory function."""
 
     def test_get_llm_respects_settings(self, monkeypatch):
-        # We patch the settings object directly since it's already loaded
         from src.config import get_settings
         settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "openai")
         monkeypatch.setattr(settings, "openai_api_key", "sk-test")
-        
+
         llm = get_llm()
         assert "openai" in type(llm).__name__.lower()
 
@@ -74,45 +74,65 @@ class TestGetLlm:
         settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "ollama")
         monkeypatch.setattr(settings, "ollama_model", "llama3")
-        
+
         llm = get_llm()
         assert "ollama" in type(llm).__name__.lower()
+
+
+class TestSanitizeEntityName:
+    """Tests for the sanitize_entity_name utility."""
+
+    @pytest.mark.parametrize("raw, expected", [
+        ("  Python  ", "Python"),
+        ("Neo4j!!!", "Neo4j"),
+        ("O'Reilly", "O'Reilly"),
+        ("normal_name", "normal_name"),
+        ("with-dash", "with-dash"),
+        ("  ", ""),
+        ("", ""),
+        ("hello<<<world>>>", "helloworld"),
+        ("café", "café"),                      # unicode letters preserved
+        ("Project (Alpha)", "Project Alpha"),   # parens removed
+        ('@#$%^&*', ""),                        # only specials → empty
+    ])
+    def test_sanitize_various_inputs(self, raw: str, expected: str):
+        assert sanitize_entity_name(raw) == expected
 
 
 class TestProcessNote:
     """Tests for the process_note extraction function."""
 
+    def test_process_note_empty_raises(self):
+        with pytest.raises(ExtractionError, match="Empty content"):
+            process_note("   ")
+
     def test_process_note_success(self):
-        mock_kg = KnowledgeGraph(entities=["A"], relations=[])
-        
-        with patch("src.processor.get_llm"), \
-             patch("src.processor.PromptTemplate") as mock_prompt_class, \
-             patch("src.processor.PydanticOutputParser"):
-            
-            mock_prompt = mock_prompt_class.return_value
-            mock_chain = MagicMock()
-            mock_chain.invoke.return_value = mock_kg
-            
-            # Mock the pipe chain: prompt | llm | parser
-            mock_prompt.__or__.return_value = MagicMock()
-            mock_prompt.__or__.return_value.__or__.return_value = mock_chain
-            
-            result = process_note("some text")
-            assert result == mock_kg
+        mock_kg = KnowledgeGraph(
+            entities=["Python!!!"],
+            relations=[Relation(source="A<<", relation="uses", target="B>>")],
+        )
+
+        with patch("src.processor.extract_structured", return_value=mock_kg):
+            result = process_note("some text", llm=MagicMock())
+
+        # entities should be sanitized
+        assert result.entities == ["Python"]
+        assert result.relations[0].source == "A"
+        assert result.relations[0].target == "B"
 
     def test_process_note_failure_raises_extraction_error(self):
-        with patch("src.processor.get_llm"), \
-             patch("src.processor.PromptTemplate") as mock_prompt_class, \
-             patch("src.processor.PydanticOutputParser"):
-            
-            mock_prompt = mock_prompt_class.return_value
-            mock_chain = MagicMock()
-            mock_chain.invoke.side_effect = Exception("LLM Error")
-            
-            mock_prompt.__or__.return_value = MagicMock()
-            mock_prompt.__or__.return_value.__or__.return_value = mock_chain
-            
-            with pytest.raises(ExtractionError) as excinfo:
-                process_note("some text")
-            
-            assert "Failed to extract knowledge graph" in str(excinfo.value)
+        with patch(
+            "src.processor.extract_structured",
+            side_effect=Exception("LLM Error"),
+        ):
+            with pytest.raises(ExtractionError, match="Failed to extract"):
+                process_note("some text", llm=MagicMock())
+
+    def test_process_note_drops_empty_entities_after_sanitize(self):
+        mock_kg = KnowledgeGraph(
+            entities=["Valid", "@#$"],  # second one becomes empty
+            relations=[],
+        )
+        with patch("src.processor.extract_structured", return_value=mock_kg):
+            result = process_note("some text", llm=MagicMock())
+        assert result.entities == ["Valid"]

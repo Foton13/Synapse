@@ -42,7 +42,13 @@ exclude = [".venv"]
 [tool.mypy]
 python_version = "3.11"
 strict = true
-exclude = ["tests", ".venv"]
+exclude = [".venv"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_incomplete_defs = false
 
 [tool.pytest.ini_options]
 filterwarnings = [

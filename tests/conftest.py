@@ -15,7 +15,7 @@ def _set_test_env(monkeypatch, tmp_path):
     monkeypatch.setenv("CHROMA_DB_PATH", str(tmp_path / "chromadb"))
     monkeypatch.setenv("NEO4J_URI", "bolt://localhost:17687")  # unlikely port
     monkeypatch.setenv("NEO4J_USER", "test")
-    monkeypatch.setenv("NEO4J_PASSWORD", "test")
+    monkeypatch.setenv("NEO4J_PASSWORD", "test_secure_password")  # >=8 chars
 
     # Clear the cached settings so the next call re-reads the env
     from src.config import get_settings

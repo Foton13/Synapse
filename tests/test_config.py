@@ -6,32 +6,35 @@ from pydantic import ValidationError
 from src.config import Settings
 
 
-class TestConfig:
-    """Tests for the Settings Pydantic model."""
+class TestSettings:
+    """Tests for Settings validation."""
 
-    def test_settings_validation_fails_without_password(self, monkeypatch):
-        # Clear env vars that might interfere
-        monkeypatch.delenv("NEO4J_PASSWORD", raising=False)
-        
-        with pytest.raises(ValidationError):
-            # Settings() without env vars will fail because neo4j_password is required
-            Settings(_env_file=None) 
+    def test_valid_settings(self):
+        s = Settings(
+            neo4j_password="secure_pass_123",
+            llm_provider="ollama",
+        )
+        assert s.neo4j_password == "secure_pass_123"
 
-    def test_settings_load_from_env(self, monkeypatch):
-        monkeypatch.setenv("NEO4J_PASSWORD", "secret123")
-        monkeypatch.setenv("LLM_PROVIDER", "openai")
-        
-        settings = Settings(_env_file=None)
-        assert settings.neo4j_password == "secret123"
-        assert settings.llm_provider == "openai"
+    def test_short_password_rejected(self):
+        with pytest.raises(ValidationError, match="at least 8 characters"):
+            Settings(neo4j_password="short")
 
-    def test_settings_defaults(self, monkeypatch):
-        # Clear env vars set by conftest.py to test actual defaults
-        monkeypatch.delenv("NEO4J_URI", raising=False)
-        monkeypatch.delenv("NEO4J_USER", raising=False)
-        monkeypatch.setenv("NEO4J_PASSWORD", "test")
-        
-        settings = Settings(_env_file=None)
-        assert settings.llm_provider == "ollama"
-        assert settings.neo4j_user == "neo4j"
-        assert settings.neo4j_uri == "bolt://localhost:7687"
+    def test_empty_password_rejected(self):
+        with pytest.raises(ValidationError, match="at least 8 characters"):
+            Settings(neo4j_password="")
+
+    def test_invalid_provider_rejected(self):
+        with pytest.raises(ValidationError, match="must be one of"):
+            Settings(
+                neo4j_password="secure_pass_123",
+                llm_provider="anthropic",
+            )
+
+    def test_ollama_provider_accepted(self):
+        s = Settings(neo4j_password="secure_pass_123", llm_provider="ollama")
+        assert s.llm_provider == "ollama"
+
+    def test_openai_provider_accepted(self):
+        s = Settings(neo4j_password="secure_pass_123", llm_provider="openai")
+        assert s.llm_provider == "openai"

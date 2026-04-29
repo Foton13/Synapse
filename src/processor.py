@@ -27,6 +27,7 @@ __all__ = [
     "process_note",
     "extract_structured",
     "ExtractionError",
+    "sanitize_entity_name",
 ]
 
 # Default timeout (seconds) for LLM calls
@@ -152,9 +153,10 @@ def process_note(
             len(content),
             MAX_CONTENT_LENGTH,
         )
-        # Truncate at the last newline before the limit to avoid mid-word cuts
+        # Truncate at the last newline before the limit to avoid mid-word cuts.
+        # Guard: keep at least 100 chars to avoid degenerating to empty string.
         cut = content[:MAX_CONTENT_LENGTH].rfind("\n")
-        content = content[: cut if cut > 0 else MAX_CONTENT_LENGTH]
+        content = content[:cut] if cut > 100 else content[:MAX_CONTENT_LENGTH]
 
     llm = llm or get_llm()
 
@@ -171,6 +173,14 @@ def process_note(
             input_variables=["text"],
             text=content,
         )
+
+        # Sanitize all entity names coming from LLM output
+        result.entities = [sanitize_entity_name(e) for e in result.entities
+                          if sanitize_entity_name(e)]
+        for rel in result.relations:
+            rel.source = sanitize_entity_name(rel.source)
+            rel.target = sanitize_entity_name(rel.target)
+
         return result
     except Exception as e:
         logger.error("Failed to extract knowledge graph: %s", e)

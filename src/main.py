@@ -9,6 +9,7 @@ Provides three commands:
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import typer
 
@@ -17,13 +18,35 @@ from src.processor import ExtractionError, get_llm, process_note
 from src.rag_engine import answer_question
 from src.vector_store import VectorStore
 
+__version__ = "0.1.0"
+
 app = typer.Typer(
     name="synapse",
-    help="Synapse -- Transform your Markdown notes into an intelligent knowledge base.",
+    help="Synapse — Transform your Markdown notes into an intelligent knowledge base.",
     add_completion=False,
 )
 
 logger = logging.getLogger("synapse")
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"synapse {__version__}")
+        raise typer.Exit()
+
+
+@app.callback()
+def main(
+    version: Optional[bool] = typer.Option(  # noqa: UP007 — Typer needs Optional
+        None,
+        "--version",
+        "-V",
+        help="Show version and exit.",
+        callback=_version_callback,
+        is_eager=True,
+    ),
+) -> None:
+    """Synapse — Transform your Markdown notes into an intelligent knowledge base."""
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -60,9 +83,10 @@ def index(
     typer.echo(f"📂 Found {len(md_files)} Markdown file(s)\n")
 
     indexed = 0
-    llm = get_llm()
 
     with GraphStore() as graph_store, VectorStore() as vector_store:
+        llm = get_llm()
+
         for file in md_files:
             typer.echo(f"  Processing {file.name} …")
             try:
@@ -126,13 +150,13 @@ def ask(
     """Ask an AI question about your notes using GraphRAG (vector + graph context)."""
     _setup_logging(verbose)
 
-    if len(question) > 1000:
-        typer.echo("❌ Question too long (max 1000 chars).", err=True)
-        raise typer.Exit(code=1)
-
     with GraphStore() as graph_store, VectorStore() as vector_store:
         llm = get_llm()
-        answer = answer_question(question, vector_store, graph_store, llm)
+        try:
+            answer = answer_question(question, vector_store, graph_store, llm)
+        except ValueError as e:
+            typer.echo(f"❌ {e}", err=True)
+            raise typer.Exit(code=1) from e
         typer.echo(f"\n🤖 AI: {answer}")
 
 

@@ -8,18 +8,27 @@ relationship storage, and graph queries.
 from __future__ import annotations
 
 import logging
+import re
 from types import TracebackType
 from typing import Any
 
 from neo4j import GraphDatabase
-from neo4j.exceptions import ServiceUnavailable
+from neo4j.exceptions import ClientError, DatabaseError, ServiceUnavailable
 
 from src.config import get_settings
-from src.processor import KnowledgeGraph
+from src.processor import KnowledgeGraph, sanitize_entity_name
 
 logger = logging.getLogger("synapse")
 
 __all__ = ["GraphStore"]
+
+# Maximum retry time for transient Neo4j errors (seconds)
+_MAX_RETRY_TIME = 30.0
+
+
+def _sanitize_relation_type(value: str) -> str:
+    """Strip unsafe characters from a relationship type string."""
+    return re.sub(r"[^\w\s\-]", "", value.strip())
 
 
 class GraphStore:
@@ -43,7 +52,9 @@ class GraphStore:
         self.user = user or settings.neo4j_user
         self.password = password or settings.neo4j_password
         self.driver = GraphDatabase.driver(
-            self.uri, auth=(self.user, self.password)
+            self.uri,
+            auth=(self.user, self.password),
+            max_transaction_retry_time=_MAX_RETRY_TIME,
         )
         self._ensure_indexes()
         logger.debug("Neo4j driver created for %s", self.uri)
@@ -58,9 +69,11 @@ class GraphStore:
                     "CREATE CONSTRAINT entity_name_unique IF NOT EXISTS "
                     "FOR (e:Entity) REQUIRE e.name IS UNIQUE"
                 )
-        except Exception as exc:  # noqa: BLE001
-            # Non-fatal: the DB may not support constraints (e.g. Community edition)
+        except (ClientError, DatabaseError) as exc:
+            # Non-fatal: the DB may not support constraints (Community edition)
             logger.warning("Could not create Entity.name constraint: %s", exc)
+        except ServiceUnavailable as exc:
+            logger.warning("Neo4j not reachable during index setup: %s", exc)
 
     # --- Context Manager ---------------------------------------------------
 
@@ -116,6 +129,9 @@ class GraphStore:
         """
         Persist a ``KnowledgeGraph`` into Neo4j **atomically**.
 
+        All entity names and relation types are sanitized before storage
+        to prevent injection of unexpected characters from LLM output.
+
         Creates ``Entity`` nodes via ``MERGE`` and ``RELATED`` edges
         between them inside a single transaction so that a partial
         failure never leaves the graph in an inconsistent state.
@@ -124,26 +140,34 @@ class GraphStore:
             kg_data: A ``KnowledgeGraph`` instance with ``.entities``
                      and ``.relations``.
         """
+        clean_entities = [
+            sanitize_entity_name(e)
+            for e in kg_data.entities
+            if sanitize_entity_name(e)  # drop empty after sanitize
+        ]
+
         rels = [
             {
-                "source": rel.source,
-                "target": rel.target,
-                "type": rel.relation,
+                "source": sanitize_entity_name(rel.source),
+                "target": sanitize_entity_name(rel.target),
+                "type": _sanitize_relation_type(rel.relation),
             }
             for rel in kg_data.relations
+            if sanitize_entity_name(rel.source)
+            and sanitize_entity_name(rel.target)
         ]
 
         with self.driver.session() as session:
             session.execute_write(
                 self._write_knowledge,
-                kg_data.entities,
+                clean_entities,
                 rels,
             )
 
         logger.info(
             "Stored %d entities, %d relations",
-            len(kg_data.entities),
-            len(kg_data.relations),
+            len(clean_entities),
+            len(rels),
         )
 
     def query_graph(self, entity_name: str) -> list[tuple[str, str]]:
@@ -156,13 +180,14 @@ class GraphStore:
         Returns:
             List of ``(connected_entity_name, relationship_type)`` tuples.
         """
+        clean_name = sanitize_entity_name(entity_name)
         with self.driver.session() as session:
             result = session.run(
                 "MATCH (e:Entity)-[r]-(connected) "
                 "WHERE e.name = toLower($name) "
                 "RETURN coalesce(connected.display_name, connected.name) "
                 "       AS conn_name, r.type AS rel_type",
-                name=entity_name,
+                name=clean_name,
             )
             return [
                 (record["conn_name"], record["rel_type"]) for record in result

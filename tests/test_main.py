@@ -9,6 +9,16 @@ from src.main import app
 runner = CliRunner()
 
 
+class TestVersionFlag:
+    """Tests for the --version flag."""
+
+    def test_version_flag(self):
+        result = runner.invoke(app, ["--version"])
+        assert result.exit_code == 0
+        assert "synapse" in result.output
+        assert "0.1.0" in result.output
+
+
 class TestIndexCommand:
     """Tests for the ``index`` CLI command."""
 
@@ -104,3 +114,23 @@ class TestAskCommand:
 
         assert result.exit_code == 0
         assert "Test answer" in result.output
+
+    def test_ask_validation_error(self):
+        with patch("src.main.GraphStore") as mock_gs_cls, \
+             patch("src.main.VectorStore") as mock_vs_cls, \
+             patch("src.main.get_llm"), \
+             patch("src.main.answer_question", side_effect=ValueError("too long")):
+
+            mock_gs = MagicMock()
+            mock_gs.__enter__ = MagicMock(return_value=mock_gs)
+            mock_gs.__exit__ = MagicMock(return_value=False)
+            mock_gs_cls.return_value = mock_gs
+
+            mock_vs = MagicMock()
+            mock_vs.__enter__ = MagicMock(return_value=mock_vs)
+            mock_vs.__exit__ = MagicMock(return_value=False)
+            mock_vs_cls.return_value = mock_vs
+
+            result = runner.invoke(app, ["ask", "test"])
+
+        assert result.exit_code == 1

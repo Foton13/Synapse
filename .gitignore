@@ -6,9 +6,15 @@ __pycache__/
 dist/
 build/
 .venv/
+*.egg
 
-# ── Environment ───────────────────────────────
+# ── Environment & Secrets ─────────────────────
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
 
 # ── Data (runtime-generated) ──────────────────
 data/chromadb/
@@ -22,8 +28,20 @@ data/neo4j/
 .idea/
 *.swp
 *.swo
+*~
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # ── Logs ──────────────────────────────────────
 *.log
+
+# ── Testing / Coverage ───────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Docker volumes (local) ────────────────────
+docker-data/

@@ -19,6 +19,9 @@ logger = logging.getLogger("synapse")
 
 __all__ = ["answer_question"]
 
+# Hard limit on question length to prevent abuse / accidental huge inputs
+MAX_QUESTION_LENGTH = 1_000
+
 
 class _ExtractedEntity(BaseModel):
     """Structured output for entity extraction from a question."""
@@ -43,10 +46,24 @@ def answer_question(
 
     Returns:
         The generated answer string.
+
+    Raises:
+        ValueError: If the question is empty or exceeds length limit.
     """
+    # --- Input validation ---------------------------------------------------
+    question = question.strip()
+    if not question:
+        raise ValueError("Question must not be empty")
+    if len(question) > MAX_QUESTION_LENGTH:
+        raise ValueError(
+            f"Question too long ({len(question)} chars, "
+            f"max {MAX_QUESTION_LENGTH})"
+        )
+
     # 1. Vector search — find semantically similar documents
     vector_results = vector_store.query(question)
-    context_docs = vector_results["documents"][0] if vector_results["documents"] else []
+    docs = vector_results.get("documents") or []
+    context_docs: list[str] = docs[0] if docs else []
 
     # 2. Graph search — extract the main entity, then look it up
     graph_results: list[tuple[str, str]] = []
@@ -75,7 +92,9 @@ def answer_question(
 
     # 3. Generate the final answer
     prompt = PromptTemplate.from_template(
-        "You are a personal-notes assistant. Use the provided context to answer.\n\n"
+        "You are a personal-notes assistant. Use ONLY the provided context "
+        "to answer. If the context does not contain enough information, "
+        "say so.\n\n"
         "Vector context:\n{vector_context}\n\n"
         "Graph context (relationships):\n{graph_context}\n\n"
         "Question: {question}\n"

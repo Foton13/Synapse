@@ -38,6 +38,8 @@ def neo4j_container():
 @pytest.fixture()
 def graph_store(neo4j_container):
     """Create a GraphStore per test and clean up data before each run."""
+    # testcontainers default password is "test"; override env so
+    # Settings validator (>=8 chars) does not interfere.
     gs = GraphStore(
         uri=neo4j_container.get_connection_url(),
         user="neo4j",

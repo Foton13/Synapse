@@ -8,11 +8,11 @@ vector search, graph knowledge, and LLM orchestration.
 import logging
 
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 
 from src.graph_store import GraphStore
+from src.processor import extract_structured, sanitize_entity_name
 from src.vector_store import VectorStore
 
 logger = logging.getLogger("synapse")
@@ -49,26 +49,21 @@ def answer_question(
     context_docs = vector_results["documents"][0] if vector_results["documents"] else []
 
     # 2. Graph search — extract the main entity, then look it up
-    entity_parser = PydanticOutputParser(pydantic_object=_ExtractedEntity)
-
-    entity_prompt = PromptTemplate(
-        template=(
-            "Extract the main entity from the following question.\n"
-            "{format_instructions}\n\n"
-            "Question: {question}"
-        ),
-        input_variables=["question"],
-        partial_variables={
-            "format_instructions": entity_parser.get_format_instructions(),
-        },
-    )
-    entity_chain = entity_prompt | llm | entity_parser
-
     graph_results: list[tuple[str, str]] = []
     entity_name = ""
     try:
-        entity_response = entity_chain.invoke({"question": question})
-        entity_name = entity_response.name.strip()
+        entity_response = extract_structured(
+            llm=llm,
+            pydantic_class=_ExtractedEntity,
+            template=(
+                "Extract the main entity from the following question.\n"
+                "{format_instructions}\n\n"
+                "Question: {question}"
+            ),
+            input_variables=["question"],
+            question=question,
+        )
+        entity_name = sanitize_entity_name(entity_response.name)
         logger.debug("Extracted entity: %s", entity_name)
         graph_results = graph_store.query_graph(entity_name)
     except Exception as e:
@@ -94,6 +89,6 @@ def answer_question(
         "question": question,
     })
 
-    return (
-        answer.content if hasattr(answer, "content") else str(answer)
-    )
+    # Ensure we always return a plain string (content can be str | list)
+    raw = answer.content if hasattr(answer, "content") else str(answer)
+    return str(raw) if not isinstance(raw, str) else raw

@@ -26,9 +26,12 @@ class TestConfig:
         assert settings.llm_provider == "openai"
 
     def test_settings_defaults(self, monkeypatch):
+        # Clear env vars set by conftest.py to test actual defaults
+        monkeypatch.delenv("NEO4J_URI", raising=False)
+        monkeypatch.delenv("NEO4J_USER", raising=False)
         monkeypatch.setenv("NEO4J_PASSWORD", "test")
         
         settings = Settings(_env_file=None)
         assert settings.llm_provider == "ollama"
-        assert settings.neo4j_user == "test"
-        assert settings.neo4j_uri == "bolt://localhost:17687"
+        assert settings.neo4j_user == "neo4j"
+        assert settings.neo4j_uri == "bolt://localhost:7687"

@@ -8,13 +8,6 @@ from src.rag_engine import answer_question
 class TestAnswerQuestion:
     """Tests for the answer_question function."""
 
-    def _make_mock_llm(self, entity_response: str, answer_response: str):
-        """Build a mock LLM that returns different values per invocation."""
-        llm = MagicMock()
-        # The LLM is used inside LangChain chains (prompt | llm | parser),
-        # so we mock at the chain level via side_effect.
-        return llm
-
     def test_answer_returns_string(self):
         """answer_question should always return a string."""
         mock_vs = MagicMock()
@@ -25,36 +18,20 @@ class TestAnswerQuestion:
 
         mock_llm = MagicMock()
 
-        # Patch the chains created inside answer_question
-        with patch("src.rag_engine.PromptTemplate") as mock_pt_cls, \
-             patch("src.rag_engine.PydanticOutputParser") as mock_parser_cls:
+        # Mock the structured extraction helper
+        mock_entity_obj = MagicMock()
+        mock_entity_obj.name = "Neo4j"
 
-            # Entity extraction chain
-            mock_entity_obj = MagicMock()
-            mock_entity_obj.name = "Neo4j"
+        # Mock the final answer chain
+        answer_chain = MagicMock()
+        answer_msg = MagicMock()
+        answer_msg.content = "Neo4j is used for graph storage."
+        answer_chain.invoke.return_value = answer_msg
 
-            # Build chained mocks for pipe operator
-            entity_chain = MagicMock()
-            entity_chain.invoke.return_value = mock_entity_obj
-
-            answer_chain = MagicMock()
-            answer_msg = MagicMock()
-            answer_msg.content = "Neo4j is used for graph storage."
-            answer_chain.invoke.return_value = answer_msg
-
-            # prompt | llm  => chain_step,  chain_step | parser => entity_chain
-            mock_prompt_instance = MagicMock()
-            chain_step = MagicMock()
-            mock_prompt_instance.__or__ = MagicMock(return_value=chain_step)
-            chain_step.__or__ = MagicMock(return_value=entity_chain)
-
-            # Second prompt for the answer
-            mock_answer_prompt = MagicMock()
-            mock_answer_prompt.__or__ = MagicMock(return_value=answer_chain)
-
-            mock_pt_cls.side_effect = [mock_prompt_instance, None]
-            mock_pt_cls.from_template = MagicMock(return_value=mock_answer_prompt)
-
+        with patch("src.rag_engine.extract_structured", return_value=mock_entity_obj), \
+             patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
+            
+            mock_ft.return_value.__or__.return_value = answer_chain
             result = answer_question("What is Neo4j?", mock_vs, mock_gs, mock_llm)
 
         assert isinstance(result, str)
@@ -66,37 +43,22 @@ class TestAnswerQuestion:
         mock_vs.query.return_value = {"documents": [["doc text"]], "ids": [["d1"]]}
 
         mock_gs = MagicMock()
-
         mock_llm = MagicMock()
 
-        with patch("src.rag_engine.PromptTemplate") as mock_pt_cls, \
-             patch("src.rag_engine.PydanticOutputParser"):
+        # Final answer chain
+        answer_chain = MagicMock()
+        answer_msg = MagicMock()
+        answer_msg.content = "Based on the context..."
+        answer_chain.invoke.return_value = answer_msg
 
-            # Entity chain raises
-            entity_chain = MagicMock()
-            entity_chain.invoke.side_effect = Exception("LLM failed")
+        with patch("src.rag_engine.extract_structured", side_effect=Exception("LLM failed")), \
+             patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
 
-            mock_prompt_instance = MagicMock()
-            chain_step = MagicMock()
-            mock_prompt_instance.__or__ = MagicMock(return_value=chain_step)
-            chain_step.__or__ = MagicMock(return_value=entity_chain)
-
-            # Answer chain works
-            answer_chain = MagicMock()
-            answer_msg = MagicMock()
-            answer_msg.content = "Based on the context..."
-            answer_chain.invoke.return_value = answer_msg
-
-            mock_answer_prompt = MagicMock()
-            mock_answer_prompt.__or__ = MagicMock(return_value=answer_chain)
-
-            mock_pt_cls.side_effect = [mock_prompt_instance, None]
-            mock_pt_cls.from_template = MagicMock(return_value=mock_answer_prompt)
-
+            mock_ft.return_value.__or__.return_value = answer_chain
             result = answer_question("What?", mock_vs, mock_gs, mock_llm)
 
         assert isinstance(result, str)
-        # Graph store should NOT have been called
+        # Graph store should NOT have been called because extraction failed
         mock_gs.query_graph.assert_not_called()
 
     def test_answer_handles_empty_vector_results(self):
@@ -109,31 +71,18 @@ class TestAnswerQuestion:
 
         mock_llm = MagicMock()
 
-        with patch("src.rag_engine.PromptTemplate") as mock_pt_cls, \
-             patch("src.rag_engine.PydanticOutputParser"):
+        mock_entity_obj = MagicMock()
+        mock_entity_obj.name = "Test"
 
-            mock_entity_obj = MagicMock()
-            mock_entity_obj.name = "Test"
+        answer_chain = MagicMock()
+        answer_msg = MagicMock()
+        answer_msg.content = "I don't have enough context."
+        answer_chain.invoke.return_value = answer_msg
 
-            entity_chain = MagicMock()
-            entity_chain.invoke.return_value = mock_entity_obj
+        with patch("src.rag_engine.extract_structured", return_value=mock_entity_obj), \
+             patch("src.rag_engine.PromptTemplate.from_template") as mock_ft:
 
-            mock_prompt_instance = MagicMock()
-            chain_step = MagicMock()
-            mock_prompt_instance.__or__ = MagicMock(return_value=chain_step)
-            chain_step.__or__ = MagicMock(return_value=entity_chain)
-
-            answer_chain = MagicMock()
-            answer_msg = MagicMock()
-            answer_msg.content = "I don't have enough context."
-            answer_chain.invoke.return_value = answer_msg
-
-            mock_answer_prompt = MagicMock()
-            mock_answer_prompt.__or__ = MagicMock(return_value=answer_chain)
-
-            mock_pt_cls.side_effect = [mock_prompt_instance, None]
-            mock_pt_cls.from_template = MagicMock(return_value=mock_answer_prompt)
-
+            mock_ft.return_value.__or__.return_value = answer_chain
             result = answer_question("Unknown?", mock_vs, mock_gs, mock_llm)
 
         assert isinstance(result, str)

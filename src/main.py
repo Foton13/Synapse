@@ -65,7 +65,11 @@ def index(
     with GraphStore() as graph_store, VectorStore() as vector_store:
         for file in md_files:
             typer.echo(f"  Processing {file.name} …")
-            content = file.read_text(encoding="utf-8")
+            try:
+                content = file.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                typer.echo(f"    ⚠️  Skipping {file.name}: not valid UTF-8")
+                continue
 
             # 1. Vector indexing
             vector_store.add_document(
@@ -121,6 +125,10 @@ def ask(
 ) -> None:
     """Ask an AI question about your notes using GraphRAG (vector + graph context)."""
     _setup_logging(verbose)
+
+    if len(question) > 1000:
+        typer.echo("❌ Question too long (max 1000 chars).", err=True)
+        raise typer.Exit(code=1)
 
     with GraphStore() as graph_store, VectorStore() as vector_store:
         llm = get_llm()

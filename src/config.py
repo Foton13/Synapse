@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # LLM Settings
     llm_provider: str = "ollama"
     ollama_model: str = "llama3"
+    openai_model: str = "gpt-4o"
     openai_api_key: str | None = None
 
     # Neo4j Settings

@@ -6,6 +6,7 @@ using ChromaDB with sentence-transformers.
 """
 
 import logging
+from types import TracebackType
 from typing import Any
 
 import chromadb
@@ -52,7 +53,7 @@ class VectorStore:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.close()
 
@@ -106,6 +107,12 @@ class VectorStore:
         if self.collection is None:
             return
         self.collection = None
+        # Ensure the PersistentClient file handles are released
+        try:
+            if self.client is not None:
+                del self.client
+        except Exception:  # noqa: BLE001
+            pass
         self.client = None
         logger.debug("ChromaDB resources released")
 

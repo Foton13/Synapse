@@ -1,6 +1,5 @@
 """Unit tests for the CLI entry point (Typer commands)."""
 
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from typer.testing import CliRunner

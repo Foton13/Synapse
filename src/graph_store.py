@@ -8,6 +8,7 @@ relationship storage, and graph queries.
 from __future__ import annotations
 
 import logging
+from types import TracebackType
 from typing import Any
 
 from neo4j import GraphDatabase
@@ -70,7 +71,7 @@ class GraphStore:
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
-        exc_tb: Any | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         self.close()
 
@@ -90,6 +91,27 @@ class GraphStore:
         self.driver.close()
         logger.debug("Neo4j driver closed")
 
+    @staticmethod
+    def _write_knowledge(
+        tx: Any,
+        entities: list[str],
+        rels: list[dict[str, str]],
+    ) -> None:
+        """Transaction function executed inside ``session.execute_write``."""
+        tx.run(
+            "UNWIND $entities AS name "
+            "MERGE (e:Entity {name: toLower(name)})"
+            "SET e.display_name = name",
+            entities=entities,
+        )
+        tx.run(
+            "UNWIND $rels AS rel "
+            "MERGE (a:Entity {name: toLower(rel.source)}) "
+            "MERGE (b:Entity {name: toLower(rel.target)}) "
+            "MERGE (a)-[r:RELATED {type: rel.type}]->(b)",
+            rels=rels,
+        )
+
     def add_knowledge(self, kg_data: KnowledgeGraph) -> None:
         """
         Persist a ``KnowledgeGraph`` into Neo4j **atomically**.
@@ -102,30 +124,21 @@ class GraphStore:
             kg_data: A ``KnowledgeGraph`` instance with ``.entities``
                      and ``.relations``.
         """
+        rels = [
+            {
+                "source": rel.source,
+                "target": rel.target,
+                "type": rel.relation,
+            }
+            for rel in kg_data.relations
+        ]
+
         with self.driver.session() as session:
-            with session.begin_transaction() as tx:
-                tx.run(
-                    "UNWIND $entities AS name "
-                    "MERGE (e:Entity {name: name})",
-                    entities=kg_data.entities,
-                )
-
-                tx.run(
-                    "UNWIND $rels AS rel "
-                    "MERGE (a:Entity {name: rel.source}) "
-                    "MERGE (b:Entity {name: rel.target}) "
-                    "MERGE (a)-[r:RELATED {type: rel.type}]->(b)",
-                    rels=[
-                        {
-                            "source": rel.source,
-                            "target": rel.target,
-                            "type": rel.relation,
-                        }
-                        for rel in kg_data.relations
-                    ],
-                )
-
-                tx.commit()
+            session.execute_write(
+                self._write_knowledge,
+                kg_data.entities,
+                rels,
+            )
 
         logger.info(
             "Stored %d entities, %d relations",
@@ -135,18 +148,20 @@ class GraphStore:
 
     def query_graph(self, entity_name: str) -> list[tuple[str, str]]:
         """
-        Find all connections for a given entity.
+        Find all connections for a given entity (case-insensitive).
 
         Args:
-            entity_name: Exact name of the entity to search.
+            entity_name: Name of the entity to search.
 
         Returns:
             List of ``(connected_entity_name, relationship_type)`` tuples.
         """
         with self.driver.session() as session:
             result = session.run(
-                "MATCH (e:Entity {name: $name})-[r]-(connected) "
-                "RETURN connected.name as conn_name, r.type as rel_type",
+                "MATCH (e:Entity)-[r]-(connected) "
+                "WHERE e.name = toLower($name) "
+                "RETURN coalesce(connected.display_name, connected.name) "
+                "       AS conn_name, r.type AS rel_type",
                 name=entity_name,
             )
             return [

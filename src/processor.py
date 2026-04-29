@@ -6,7 +6,8 @@ from text using Large Language Models (Ollama or OpenAI).
 """
 
 import logging
-from typing import cast
+import re
+from typing import Any, TypeVar, cast
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
@@ -19,7 +20,17 @@ from src.config import get_settings
 
 logger = logging.getLogger("synapse")
 
-__all__ = ["Relation", "KnowledgeGraph", "get_llm", "process_note", "ExtractionError"]
+__all__ = [
+    "Relation",
+    "KnowledgeGraph",
+    "get_llm",
+    "process_note",
+    "extract_structured",
+    "ExtractionError",
+]
+
+# Default timeout (seconds) for LLM calls
+LLM_TIMEOUT = 120
 
 # Maximum content length sent to LLM to avoid context window overflow / cost spikes
 MAX_CONTENT_LENGTH = 50_000
@@ -62,12 +73,56 @@ def get_llm() -> BaseChatModel:
             raise ValueError(
                 "OPENAI_API_KEY must be set when LLM_PROVIDER=openai"
             )
-        return ChatOpenAI(model="gpt-4o", api_key=settings.openai_api_key)  # type: ignore[arg-type]
-    return ChatOllama(model=settings.ollama_model)
+        return ChatOpenAI(
+            model=settings.openai_model,
+            api_key=settings.openai_api_key,  # type: ignore[arg-type]
+            timeout=LLM_TIMEOUT,
+        )
+    return ChatOllama(model=settings.ollama_model, timeout=LLM_TIMEOUT)
 
 
 class ExtractionError(Exception):
     """Exception raised when knowledge extraction fails."""
+
+
+_T = TypeVar("_T", bound=BaseModel)
+
+
+def extract_structured(
+    llm: BaseChatModel,
+    pydantic_class: type[_T],
+    template: str,
+    input_variables: list[str],
+    **invoke_kwargs: Any,
+) -> _T:
+    """Build a prompt → LLM → parser chain and invoke it.
+
+    This is a shared helper that eliminates duplicated chain-building
+    logic in *processor* and *rag_engine*.
+
+    Args:
+        llm: The language model to use.
+        pydantic_class: Pydantic model class for structured output.
+        template: Prompt template string (must contain ``{format_instructions}``).
+        input_variables: Names of the user-supplied template variables.
+        **invoke_kwargs: Values for the template variables.
+
+    Returns:
+        Parsed Pydantic model instance.
+    """
+    parser = PydanticOutputParser(pydantic_object=pydantic_class)
+    prompt = PromptTemplate(
+        template=template,
+        input_variables=input_variables,
+        partial_variables={"format_instructions": parser.get_format_instructions()},
+    )
+    chain = prompt | llm | parser
+    return cast(_T, chain.invoke(invoke_kwargs))
+
+
+def sanitize_entity_name(name: str) -> str:
+    """Normalize an entity name: strip whitespace and remove unsafe characters."""
+    return re.sub(r"[^\w\s\-']", "", name.strip())
 
 
 def process_note(
@@ -97,27 +152,26 @@ def process_note(
             len(content),
             MAX_CONTENT_LENGTH,
         )
-        content = content[:MAX_CONTENT_LENGTH]
+        # Truncate at the last newline before the limit to avoid mid-word cuts
+        cut = content[:MAX_CONTENT_LENGTH].rfind("\n")
+        content = content[: cut if cut > 0 else MAX_CONTENT_LENGTH]
 
     llm = llm or get_llm()
-    parser = PydanticOutputParser(pydantic_object=KnowledgeGraph)
-
-    prompt = PromptTemplate(
-        template=(
-            "Analyze the following text and extract key entities "
-            "and their relationships.\n"
-            "{format_instructions}\n\n"
-            "Text:\n{text}"
-        ),
-        input_variables=["text"],
-        partial_variables={"format_instructions": parser.get_format_instructions()},
-    )
-
-    chain = prompt | llm | parser
 
     try:
-        result = chain.invoke({"text": content})
-        return cast(KnowledgeGraph, result)
+        result = extract_structured(
+            llm=llm,
+            pydantic_class=KnowledgeGraph,
+            template=(
+                "Analyze the following text and extract key entities "
+                "and their relationships.\n"
+                "{format_instructions}\n\n"
+                "Text:\n{text}"
+            ),
+            input_variables=["text"],
+            text=content,
+        )
+        return result
     except Exception as e:
         logger.error("Failed to extract knowledge graph: %s", e)
         raise ExtractionError(f"Failed to extract knowledge graph: {e}") from e

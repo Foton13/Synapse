@@ -74,7 +74,7 @@ class VectorStore:
     def __init__(self, persist_path: str | None = None):
         path = persist_path or get_settings().chroma_db_path
         client = chromadb.PersistentClient(path=path)
-        self._client: chromadb.PersistentClient | None = client
+        self._client: Any = client
         self._embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         self._collection: Collection | None = client.get_or_create_collection(
             name="notes",
@@ -134,7 +134,7 @@ class VectorStore:
             for i in range(len(chunks))
         ]
 
-        collection.upsert(ids=ids, documents=chunks, metadatas=metas)
+        collection.upsert(ids=ids, documents=chunks, metadatas=metas)  # type: ignore[arg-type]
         logger.info("Indexed document: %s (%d chunk(s))", doc_id, len(chunks))
 
     def query(self, query_text: str, n_results: int = 3) -> dict[str, Any]:

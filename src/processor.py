@@ -77,7 +77,7 @@ def get_llm() -> BaseChatModel:
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
             timeout=LLM_TIMEOUT,
         )
-    return ChatOllama(model=settings.ollama_model, timeout=LLM_TIMEOUT)
+    return ChatOllama(model=settings.ollama_model, timeout=LLM_TIMEOUT)  # type: ignore[call-arg]
 
 
 class ExtractionError(Exception):

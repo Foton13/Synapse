@@ -8,7 +8,6 @@ Provides three commands:
 """
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import typer
@@ -61,43 +60,34 @@ def index(
     typer.echo(f"📂 Found {len(md_files)} Markdown file(s)\n")
 
     indexed = 0
-
-    def _process_single_file(file: Path, vs: VectorStore, gs: GraphStore) -> int:
-        typer.echo(f"  Processing {file.name} …")
-        content = file.read_text(encoding="utf-8")
-
-        # 1. Vector indexing
-        vs.add_document(
-            doc_id=str(file),
-            text=content,
-            metadata={"filename": file.name},
-        )
-
-        # 2. Graph indexing
-        try:
-            kg_data = process_note(content)
-            gs.add_knowledge(kg_data)
-            typer.echo(
-                f" ✅ {len(kg_data.entities)} entities, "
-                f"{len(kg_data.relations)} relations for {file.name}"
-            )
-            return 1
-        except ExtractionError as e:
-            typer.echo(f" ⚠️ Could not extract graph for {file.name}: {e}")
-            return 0
-        except Exception as e:
-            logger.error("Error processing %s: %s", file.name, e)
-            typer.echo(f"    ❌ Error for {file.name}: {e}")
-            return 0
+    llm = get_llm()
 
     with GraphStore() as graph_store, VectorStore() as vector_store:
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(_process_single_file, f, vector_store, graph_store)
-                for f in md_files
-            ]
-            for future in as_completed(futures):
-                indexed += future.result()
+        for file in md_files:
+            typer.echo(f"  Processing {file.name} …")
+            content = file.read_text(encoding="utf-8")
+
+            # 1. Vector indexing
+            vector_store.add_document(
+                doc_id=str(file),
+                text=content,
+                metadata={"filename": file.name},
+            )
+
+            # 2. Graph indexing
+            try:
+                kg_data = process_note(content, llm=llm)
+                graph_store.add_knowledge(kg_data)
+                typer.echo(
+                    f"    ✅ {len(kg_data.entities)} entities, "
+                    f"{len(kg_data.relations)} relations"
+                )
+                indexed += 1
+            except ExtractionError as e:
+                typer.echo(f"    ⚠️ Could not extract graph for {file.name}: {e}")
+            except Exception as e:
+                logger.error("Error processing %s: %s", file.name, e)
+                typer.echo(f"    ❌ Error for {file.name}: {e}")
 
     typer.echo(f"\n✨ Done — {indexed}/{len(md_files)} files indexed successfully.")
 

@@ -11,7 +11,7 @@ from typing import Any
 import chromadb
 from chromadb.utils import embedding_functions
 
-from src.config import settings
+from src.config import get_settings
 
 logger = logging.getLogger("synapse")
 
@@ -32,7 +32,7 @@ class VectorStore:
     """
 
     def __init__(self, persist_path: str | None = None):
-        path = persist_path or settings.chroma_db_path
+        path = persist_path or get_settings().chroma_db_path
         self.client: Any = chromadb.PersistentClient(path=path)
         self.embedding_fn = embedding_functions.DefaultEmbeddingFunction()
         self.collection: Any = (
@@ -97,7 +97,12 @@ class VectorStore:
         return dict(result)
 
     def close(self) -> None:
-        """Gracefully release ChromaDB resources."""
+        """Gracefully release ChromaDB resources.
+
+        After calling ``close()`` the store is **not** reusable.
+        Any subsequent ``add_document`` / ``query`` call will raise
+        ``RuntimeError``.
+        """
         if self.collection is None:
             return
         self.collection = None

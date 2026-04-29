@@ -61,7 +61,8 @@ class TestGetLlm:
 
     def test_get_llm_respects_settings(self, monkeypatch):
         # We patch the settings object directly since it's already loaded
-        from src.processor import settings
+        from src.config import get_settings
+        settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "openai")
         monkeypatch.setattr(settings, "openai_api_key", "sk-test")
         
@@ -69,7 +70,8 @@ class TestGetLlm:
         assert "openai" in type(llm).__name__.lower()
 
     def test_get_llm_defaults_to_ollama(self, monkeypatch):
-        from src.processor import settings
+        from src.config import get_settings
+        settings = get_settings()
         monkeypatch.setattr(settings, "llm_provider", "ollama")
         monkeypatch.setattr(settings, "ollama_model", "llama3")
         

@@ -56,12 +56,16 @@ synapse/
 ├── src/
 │   ├── __init__.py
 │   ├── main.py           # CLI entry point (Typer)
+│   ├── config.py         # Pydantic-settings configuration
 │   ├── processor.py      # LLM-based entity & relation extraction
+│   ├── rag_engine.py     # GraphRAG query engine (vector + graph)
 │   ├── graph_store.py    # Neo4j wrapper
 │   └── vector_store.py   # ChromaDB wrapper
 ├── tests/
 │   ├── conftest.py       # Shared pytest fixtures
 │   ├── test_processor.py # Model & factory tests
+│   ├── test_rag_engine.py # RAG engine unit tests
+│   ├── test_main.py      # CLI command tests
 │   ├── test_integration.py # Docker-based E2E tests
 │   └── test_vector_store.py
 ├── data/

@@ -2,9 +2,14 @@
 Synapse — Global configuration.
 
 Uses pydantic-settings to safely load and validate environment variables.
+Lazy initialization prevents crashes at import time when env vars are missing.
 """
 
+from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+__all__ = ["Settings", "get_settings"]
 
 
 class Settings(BaseSettings):
@@ -32,5 +37,7 @@ class Settings(BaseSettings):
     chroma_db_path: str = "./data/chromadb"
 
 
-# Global singleton settings instance
-settings = Settings()  # type: ignore[call-arg]
+@lru_cache
+def get_settings() -> Settings:
+    """Return the global settings instance (created lazily on first call)."""
+    return Settings()  # type: ignore[call-arg]
